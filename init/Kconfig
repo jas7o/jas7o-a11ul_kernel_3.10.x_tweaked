@@ -758,6 +758,9 @@ config LOG_BUF_SHIFT
 config HAVE_UNSTABLE_SCHED_CLOCK
 	bool
 
+config GENERIC_SCHED_CLOCK
+	bool
+
 #
 # For architectures that want to enable the support for NUMA-affine scheduler
 # balancing logic:
@@ -1251,6 +1254,12 @@ config HOTPLUG
 config HAVE_PCSPKR_PLATFORM
 	bool
 
+config PANIC_TIMEOUT
+	int "Default panic timeout"
+	default 0
+	help
+	  Set default panic timeout.
+
 menuconfig EXPERT
 	bool "Configure standard kernel features (expert users)"
 	# Unhide debug options, to make the on-by-default options visible
@@ -1320,6 +1329,22 @@ config PRINTK
 	  and makes the kernel more or less silent. As this makes it
 	  very difficult to diagnose system problems, saying N here is
 	  strongly discouraged.
+
+config PRINTK_CPU_ID
+	depends on PRINTK
+	default y
+	bool "Enable support for Print working core no. in dmesg" if EXPERT
+	help
+	  Print working CPU number in the dmesg as default, it can be turned
+	  off by writing 0 to module parameter cpu.
+
+config PRINTK_PID
+	depends on PRINTK
+	default y
+	bool "Enable support for Print working task id in dmesg" if EXPERT
+	help
+	  Print working process id in the dmesg as default, it can be turned
+	  off by writing 0 to module parameter pid.
 
 config BUG
 	bool "BUG() support" if EXPERT

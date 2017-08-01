@@ -185,6 +185,26 @@ static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 }
 
+#ifdef CONFIG_STRICT_MEMORY_RWX
+pmdval_t get_pmd_prot_sect_kernel(unsigned long addr)
+{
+	if (addr >= (unsigned long)__init_data_begin)
+		return prot_sect_kernel | PMD_SECT_PXN;
+	if (addr >= (unsigned long)__init_begin)
+		return prot_sect_kernel | PMD_SECT_RDONLY;
+	if (addr >= (unsigned long)__start_rodata)
+		return prot_sect_kernel | PMD_SECT_RDONLY | PMD_SECT_PXN;
+	if (addr >= (unsigned long)_stext)
+		return prot_sect_kernel | PMD_SECT_RDONLY;
+	return prot_sect_kernel | PMD_SECT_PXN;
+}
+#else
+pmdval_t get_pmd_prot_sect_kernel(unsigned long addr)
+{
+	return prot_sect_kernel;
+}
+#endif
+
 static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 				  unsigned long end, phys_addr_t phys)
 {
@@ -204,7 +224,8 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 		next = pmd_addr_end(addr, end);
 		/* try section mapping first */
 		if (((addr | next | phys) & ~SECTION_MASK) == 0)
-			set_pmd(pmd, __pmd(phys | prot_sect_kernel));
+			set_pmd(pmd,
+				__pmd(phys | get_pmd_prot_sect_kernel(addr)));
 		else
 			alloc_init_pte(pmd, addr, next, __phys_to_pfn(phys));
 		phys += next - addr;
@@ -296,6 +317,19 @@ void __iomem * __init early_io_map(phys_addr_t phys, unsigned long virt)
 static void __init map_mem(void)
 {
 	struct memblock_region *reg;
+	phys_addr_t limit;
+
+	/*
+	 * Temporarily limit the memblock range. We need to do this as
+	 * create_mapping requires puds, pmds and ptes to be allocated from
+	 * memory addressable from the initial direct kernel mapping.
+	 *
+	 * The initial direct kernel mapping, located at swapper_pg_dir,
+	 * gives us PGDIR_SIZE memory starting from PHYS_OFFSET (which must be
+	 * aligned to 2MB as per Documentation/arm64/booting.txt).
+	 */
+	limit = PHYS_OFFSET + PGDIR_SIZE;
+	memblock_set_current_limit(limit);
 
 	/* map all the memory banks */
 	for_each_memblock(memory, reg) {
@@ -305,8 +339,27 @@ static void __init map_mem(void)
 		if (start >= end)
 			break;
 
+#ifndef CONFIG_ARM64_64K_PAGES
+		/*
+		 * For the first memory bank align the start address and
+		 * current memblock limit to prevent create_mapping() from
+		 * allocating pte page tables from unmapped memory.
+		 * When 64K pages are enabled, the pte page table for the
+		 * first PGDIR_SIZE is already present in swapper_pg_dir.
+		 */
+		if (start < limit)
+			start = ALIGN(start, PMD_SIZE);
+		if (end < limit) {
+			limit = end & PMD_MASK;
+			memblock_set_current_limit(limit);
+		}
+#endif
+
 		create_mapping(start, __phys_to_virt(start), end - start);
 	}
+
+	/* Limit no longer required. */
+	memblock_set_current_limit(MEMBLOCK_ALLOC_ANYWHERE);
 }
 
 /*
@@ -316,12 +369,6 @@ static void __init map_mem(void)
 void __init paging_init(void)
 {
 	void *zero_page;
-
-	/*
-	 * Maximum PGDIR_SIZE addressable via the initial direct kernel
-	 * mapping in swapper_pg_dir.
-	 */
-	memblock_set_current_limit((PHYS_OFFSET & PGDIR_MASK) + PGDIR_SIZE);
 
 	init_mem_pgprot();
 	map_mem();

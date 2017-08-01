@@ -20,10 +20,6 @@
 
 static DEFINE_SPINLOCK(sched_debug_lock);
 
-/*
- * This allows printing both to /proc/sched_debug and
- * to the console
- */
 #define SEQ_printf(m, x...)			\
  do {						\
 	if (m)					\
@@ -32,9 +28,6 @@ static DEFINE_SPINLOCK(sched_debug_lock);
 		printk(x);			\
  } while (0)
 
-/*
- * Ease the printing of nsec fields:
- */
 static long long nsec_high(unsigned long long nsec)
 {
 	if ((long long)nsec < 0) {
@@ -142,6 +135,7 @@ print_task(struct seq_file *m, struct rq *rq, struct task_struct *p)
 #endif
 
 	SEQ_printf(m, "\n");
+	if (!m) show_stack(p, NULL);
 }
 
 static void print_rq(struct seq_file *m, struct rq *rq, int rq_cpu)
@@ -404,6 +398,7 @@ static int sched_debug_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+#ifdef CONFIG_SYSRQ_SCHED_DEBUG
 void sysrq_sched_debug_show(void)
 {
 	int cpu;
@@ -413,14 +408,8 @@ void sysrq_sched_debug_show(void)
 		print_cpu(NULL, cpu);
 
 }
+#endif
 
-/*
- * This itererator needs some explanation.
- * It returns 1 for the header position.
- * This means 2 is cpu 0.
- * In a hotplugged system some cpus, including cpu 0, may be missing so we have
- * to use cpumask_* to iterate over the cpus.
- */
 static void *sched_debug_start(struct seq_file *file, loff_t *offset)
 {
 	unsigned long n = *offset;
@@ -545,6 +534,11 @@ void proc_sched_show_task(struct task_struct *p, struct seq_file *m)
 	P(se.statistics.nr_wakeups_affine_attempts);
 	P(se.statistics.nr_wakeups_passive);
 	P(se.statistics.nr_wakeups_idle);
+
+#if defined(CONFIG_SMP) && defined(CONFIG_FAIR_GROUP_SCHED)
+	P(se.avg.runnable_avg_sum);
+	P(se.avg.runnable_avg_period);
+#endif
 
 	{
 		u64 avg_atom, avg_per_cpu;

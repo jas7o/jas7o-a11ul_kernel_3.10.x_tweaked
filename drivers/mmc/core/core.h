@@ -14,6 +14,8 @@
 #include <linux/delay.h>
 
 #define MMC_CMD_RETRIES        3
+#define MMC_WAKELOCK_TIMEOUT 12
+#define MMC_DETECT_RETRIES	5
 
 struct mmc_bus_ops {
 	int (*awake)(struct mmc_host *);
@@ -25,6 +27,8 @@ struct mmc_bus_ops {
 	int (*power_save)(struct mmc_host *);
 	int (*power_restore)(struct mmc_host *);
 	int (*alive)(struct mmc_host *);
+	int (*change_bus_speed)(struct mmc_host *, unsigned long *);
+	int (*reinit)(struct mmc_host *);
 };
 
 void mmc_attach_bus(struct mmc_host *host, const struct mmc_bus_ops *ops);
@@ -32,6 +36,8 @@ void mmc_detach_bus(struct mmc_host *host);
 
 void mmc_init_erase(struct mmc_card *card);
 
+void mmc_power_up(struct mmc_host *host);
+void mmc_power_off(struct mmc_host *host);
 void mmc_set_chip_select(struct mmc_host *host, int mode);
 void mmc_set_clock(struct mmc_host *host, unsigned int hz);
 void mmc_gate_clock(struct mmc_host *host);
@@ -52,12 +58,16 @@ static inline void mmc_delay(unsigned int ms)
 	if (ms < 1000 / HZ) {
 		cond_resched();
 		mdelay(ms);
+	} else if (ms < jiffies_to_msecs(2)) {
+		usleep_range(ms * 1000, (ms + 1) * 1000);
 	} else {
 		msleep(ms);
 	}
 }
 
 void mmc_rescan(struct work_struct *work);
+void mmc_enable_detection(struct work_struct *work);
+void mmc_stats(struct work_struct *work);
 void mmc_start_host(struct mmc_host *host);
 void mmc_stop_host(struct mmc_host *host);
 
@@ -67,10 +77,8 @@ int mmc_attach_mmc(struct mmc_host *host);
 int mmc_attach_sd(struct mmc_host *host);
 int mmc_attach_sdio(struct mmc_host *host);
 
-/* Module parameters */
 extern bool use_spi_crc;
 
-/* Debugfs information for hosts and cards */
 void mmc_add_host_debugfs(struct mmc_host *host);
 void mmc_remove_host_debugfs(struct mmc_host *host);
 
@@ -78,5 +86,12 @@ void mmc_add_card_debugfs(struct mmc_card *card);
 void mmc_remove_card_debugfs(struct mmc_card *card);
 
 void mmc_init_context_info(struct mmc_host *host);
+
+extern void mmc_disable_clk_scaling(struct mmc_host *host);
+extern bool mmc_can_scale_clk(struct mmc_host *host);
+extern void mmc_init_clk_scaling(struct mmc_host *host);
+extern void mmc_exit_clk_scaling(struct mmc_host *host);
+extern void mmc_reset_clk_scale_stats(struct mmc_host *host);
+extern unsigned long mmc_get_max_frequency(struct mmc_host *host);
 #endif
 

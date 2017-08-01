@@ -9,6 +9,9 @@
 #
 # Normal rules
 #
+*.dtsi_
+*.c_
+*.h_
 .*
 *.o
 *.o.*
@@ -32,6 +35,7 @@ modules.builtin
 *.lzo
 *.patch
 *.gcno
+*.log
 
 #
 # Top-level generic files
@@ -44,6 +48,16 @@ modules.builtin
 /System.map
 /Module.markers
 /Module.symvers
+/backup_kernel.sh
+/clean_make.sh
+/clean_mproper.sh
+/compile.sh
+/config_backup.sh
+/export.sh
+/new_compile.sh
+/dtb_build.sh
+/zImage_Ready
+log_build/**
 
 #
 # Debian directory (make deb-pkg)

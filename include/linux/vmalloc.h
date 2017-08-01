@@ -4,26 +4,21 @@
 #include <linux/spinlock.h>
 #include <linux/init.h>
 #include <linux/list.h>
-#include <asm/page.h>		/* pgprot_t */
+#include <asm/page.h>		
 #include <linux/rbtree.h>
 
-struct vm_area_struct;		/* vma defining user mapping in mm_types.h */
+struct vm_area_struct;		
 
-/* bits in flags of vmalloc's vm_struct below */
-#define VM_IOREMAP	0x00000001	/* ioremap() and friends */
-#define VM_ALLOC	0x00000002	/* vmalloc() */
-#define VM_MAP		0x00000004	/* vmap()ed pages */
-#define VM_USERMAP	0x00000008	/* suitable for remap_vmalloc_range */
-#define VM_VPAGES	0x00000010	/* buffer for pages was vmalloc'ed */
-#define VM_UNLIST	0x00000020	/* vm_struct is not listed in vmlist */
-/* bits [20..32] reserved for arch specific ioremap internals */
+#define VM_IOREMAP	0x00000001	
+#define VM_ALLOC	0x00000002	
+#define VM_MAP		0x00000004	
+#define VM_USERMAP	0x00000008	
+#define VM_VPAGES	0x00000010	
+#define VM_UNLIST	0x00000020	
+#define VM_LOWMEM	0x00000040	
 
-/*
- * Maximum alignment for ioremap() regions.
- * Can be overriden by arch-specific value.
- */
 #ifndef IOREMAP_MAX_ORDER
-#define IOREMAP_MAX_ORDER	(7 + PAGE_SHIFT)	/* 128 pages */
+#define IOREMAP_MAX_ORDER	(7 + PAGE_SHIFT)	
 #endif
 
 struct vm_struct {
@@ -41,16 +36,13 @@ struct vmap_area {
 	unsigned long va_start;
 	unsigned long va_end;
 	unsigned long flags;
-	struct rb_node rb_node;         /* address sorted rbtree */
-	struct list_head list;          /* address sorted list */
-	struct list_head purge_list;    /* "lazy purge" list */
+	struct rb_node rb_node;         
+	struct list_head list;          
+	struct list_head purge_list;    
 	struct vm_struct *vm;
 	struct rcu_head rcu_head;
 };
 
-/*
- *	Highlevel APIs for driver use
- */
 extern void vm_unmap_ram(const void *mem, unsigned int count);
 extern void *vm_map_ram(struct page **pages, unsigned int count,
 				int node, pgprot_t prot);
@@ -86,13 +78,10 @@ extern int remap_vmalloc_range(struct vm_area_struct *vma, void *addr,
 							unsigned long pgoff);
 void vmalloc_sync_all(void);
  
-/*
- *	Lowlevel-APIs (not for driver use!)
- */
 
 static inline size_t get_vm_area_size(const struct vm_struct *area)
 {
-	/* return actual size without guard page */
+	
 	return area->size - PAGE_SIZE;
 }
 
@@ -132,20 +121,22 @@ unmap_kernel_range(unsigned long addr, unsigned long size)
 }
 #endif
 
-/* Allocate/destroy a 'vmalloc' VM area. */
 extern struct vm_struct *alloc_vm_area(size_t size, pte_t **ptes);
 extern void free_vm_area(struct vm_struct *area);
 
-/* for /dev/kmem */
 extern long vread(char *buf, char *addr, unsigned long count);
 extern long vwrite(char *buf, char *addr, unsigned long count);
 
-/*
- *	Internals.  Dont't use..
- */
 extern struct list_head vmap_area_list;
 extern __init void vm_area_add_early(struct vm_struct *vm);
 extern __init void vm_area_register_early(struct vm_struct *vm, size_t align);
+extern __init int vm_area_check_early(struct vm_struct *vm);
+#ifdef CONFIG_ENABLE_VMALLOC_SAVING
+extern void mark_vmalloc_reserved_area(void *addr, unsigned long size);
+#else
+static inline void mark_vmalloc_reserved_area(void *addr, unsigned long size)
+{ };
+#endif
 
 #ifdef CONFIG_SMP
 # ifdef CONFIG_MMU
@@ -172,11 +163,21 @@ pcpu_free_vm_areas(struct vm_struct **vms, int nr_vms)
 
 struct vmalloc_info {
 	unsigned long   used;
+	unsigned long   ioremap;
+	unsigned long   alloc;
+	unsigned long   map;
+	unsigned long   usermap;
+	unsigned long   vpages;
 	unsigned long   largest_chunk;
 };
 
 #ifdef CONFIG_MMU
+#ifdef CONFIG_ENABLE_VMALLOC_SAVING
+extern unsigned long total_vmalloc_size;
+#define VMALLOC_TOTAL total_vmalloc_size
+#else
 #define VMALLOC_TOTAL (VMALLOC_END - VMALLOC_START)
+#endif
 extern void get_vmalloc_info(struct vmalloc_info *vmi);
 #else
 
@@ -184,8 +185,13 @@ extern void get_vmalloc_info(struct vmalloc_info *vmi);
 #define get_vmalloc_info(vmi)			\
 do {						\
 	(vmi)->used = 0;			\
+	(vmi)->ioremap = 0;             \
+	(vmi)->alloc = 0;               \
+	(vmi)->map = 0;         \
+	(vmi)->usermap = 0;             \
+	(vmi)->vpages = 0;              \
 	(vmi)->largest_chunk = 0;		\
 } while (0)
 #endif
 
-#endif /* _LINUX_VMALLOC_H */
+#endif 

@@ -1,0 +1,119 @@
+# 0. 準備<br>
+```C
+$ mkdir kernel
+$ mkdir OUT
+```
+
+# 1. kernel/samsung/hlte_twrp
+新しいターミナルを開き、カーネルソースを入手<br>
+```C
+$ git clone https://github.com/SaburoJiro/twrp_kernel_samsung_hlte.git kernel/samsung/hlte_twrp -b twrp-5.0
+```
+zImageをビルド<br>
+```C
+$ export CROSS_COMPILE_PATH=~/bin/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2015.06/bin ;\
+  export PATH=$CROSS_COMPILE_PATH:$PATH ;\
+  export CROSS_COMPILE=$CROSS_COMPILE_PATH/arm-eabi-
+
+$ export Kernel_Name=hlte_twrp
+$ mkdir -p OUT/$Kernel_Name
+$ export KERNEL_DEFCONFIG=stock_hlte_defconfig ;\
+  export VARIANT_DEFCONFIG=variant_hlte_kdi
+
+$ make -C kernel/samsung/$Kernel_Name O=$(pwd)/OUT/$Kernel_Name ARCH=arm \
+       $KERNEL_DEFCONFIG \
+       VARIANT_DEFCONFIG=$VARIANT_DEFCONFIG \
+       SELINUX_DEFCONFIG=$SELINUX_DEFCONFIG
+$ make -C kernel/samsung/$Kernel_Name O=$(pwd)/OUT/$Kernel_Name ARCH=arm -j34
+```
+dt.imgを作成<br>
+```C
+$ ./dtbToolCM
+DTB combiner:
+Output file must be specified
+dtbTool version 3 (kinda :) )
+dtbTool [options] -o <output file> <input DTB path>
+  options:
+  --output-file/-o     output file
+  --dtc-path/-p        path to dtc
+  --page-size/-s       page size in bytes
+  --dt-tag/-d          alternate QCDT_DT_TAG
+  --verbose/-v         verbose
+  --force-v2/-2        output dtb v2 format
+  --force-v3/-3        output dtb v3 format
+  --help/-h            this help screen
+
+$ ./Build_dtimg.sh $(pwd)/OUT/$Kernel_Name/arch/arm/boot
+```
+
+# 2. kernel/samsung/hlte_twrp
+新しいターミナルを開き、カーネルソースを入手<br>
+```C
+$ git clone https://github.com/SaburoJiro/twrp_kernel_samsung_hlte.git kernel/samsung/hlte_twrp -b twrp-5.0
+```
+zImageをビルド<br>
+```C
+$ export CROSS_COMPILE_PATH=~/bin/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2015.06/bin ;\
+  export PATH=$CROSS_COMPILE_PATH:$PATH ;\
+  export CROSS_COMPILE=$CROSS_COMPILE_PATH/arm-eabi-
+
+$ export Kernel_Name=hlte_twrp
+$ mkdir -p OUT/$Kernel_Name
+$ export KERNEL_DEFCONFIG=stock_hlte_defconfig ;\
+  export VARIANT_DEFCONFIG=variant_hlte_kdi
+
+$ make -C kernel/samsung/$Kernel_Name O=$(pwd)/OUT/$Kernel_Name ARCH=arm \
+       $KERNEL_DEFCONFIG \
+       VARIANT_DEFCONFIG=$VARIANT_DEFCONFIG \
+       SELINUX_DEFCONFIG=$SELINUX_DEFCONFIG
+$ make -C kernel/samsung/$Kernel_Name O=$(pwd)/OUT/$Kernel_Name ARCH=arm -j34
+```
+dt.imgを作成<br>
+```C
+$ ./Build_dtimg.sh $(pwd)/OUT/$Kernel_Name/arch/arm/boot
+```
+
+# 3. kernel/samsung/msm8974
+新しいターミナルを開き、カーネルソースを入手<br>
+```C
+$ git clone https://github.com/SaburoJiro/android_kernel_samsung_msm8974.git kernel/samsung/msm8974 -b cm-14.1
+```
+zImageをビルド<br>
+```C
+$ export CROSS_COMPILE_PATH=~/bin/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2015.06/bin ;\
+  export PATH=$CROSS_COMPILE_PATH:$PATH ;\
+  export CROSS_COMPILE=$CROSS_COMPILE_PATH/arm-eabi-
+
+$ export Kernel_Name=msm8974
+$ mkdir -p OUT/$Kernel_Name
+$ export KERNEL_DEFCONFIG=cm_msm8974_sec_defconfig ;\
+  export VARIANT_DEFCONFIG=cm_msm8974_sec_hlte_kdi_defconfig ;\
+  export SELINUX_DEFCONFIG=selinux_defconfig
+
+$ make -C kernel/samsung/$Kernel_Name O=$(pwd)/OUT/$Kernel_Name ARCH=arm \
+       $KERNEL_DEFCONFIG \
+       VARIANT_DEFCONFIG=$VARIANT_DEFCONFIG \
+       SELINUX_DEFCONFIG=$SELINUX_DEFCONFIG
+$ make -C kernel/samsung/$Kernel_Name O=$(pwd)/OUT/$Kernel_Name ARCH=arm -j34
+```
+dt.imgを作成<br>
+```C
+$ ./Build_dtimg.sh $(pwd)/OUT/$Kernel_Name/arch/arm/boot
+```
+
+# 4. 任意のdtbからdt.imgを作る<br>
+Test_dtb_combineディレクトリにdtbファイルを保存<br>
+新しいターミナルを開き、下記を実行<br>
+```C
+$ export dtb_dir=Test_dtb_combine
+$ ./Build_dtimg.sh $dtb_dir
+```
+
+# 5. kernel/samsung/hlte
+現在このリポジトリでビルドしたzImage,dtb.imgを使用して、twrpをビルドした場合<br>
+実機起動後に画面がブラックアウト（起動しているが画面表示なし）するので<br>
+ビルド方法を載せないことにする<br>
+```C
+$ git clone https://github.com/SaburoJiro/android_kernel_samsung_hlte.git kernel/samsung/hlte -b cm-13.0
+```
+

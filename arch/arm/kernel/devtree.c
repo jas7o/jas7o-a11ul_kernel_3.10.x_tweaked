@@ -28,6 +28,18 @@
 
 void __init early_init_dt_add_memory_arch(u64 base, u64 size)
 {
+#ifndef CONFIG_ARM_LPAE
+	if (base > ((phys_addr_t)~0)) {
+		pr_crit("Ignoring memory at 0x%08llx due to lack of LPAE support\n",
+			base);
+		return;
+	}
+
+	if (size > ((phys_addr_t)~0))
+		size = ((phys_addr_t)~0);
+
+	/* arm_add_memory() already checks for the case of base + size > 4GB */
+#endif
 	arm_add_memory(base, size);
 }
 
@@ -162,11 +174,20 @@ void __init arm_dt_init_cpu_maps(void)
 	 * a reg property, the DT CPU list can be considered valid and the
 	 * logical map created in smp_setup_processor_id() can be overridden
 	 */
-	for (i = 0; i < cpuidx; i++) {
-		set_cpu_possible(i, true);
-		cpu_logical_map(i) = tmp_map[i];
-		pr_debug("cpu logical map 0x%x\n", cpu_logical_map(i));
+	for (i = 0; i < nr_cpu_ids; i++) {
+		if (i < cpuidx) {
+			set_cpu_possible(i, true);
+			cpu_logical_map(i) = tmp_map[i];
+			pr_debug("cpu logical map 0x%x\n", cpu_logical_map(i));
+		} else {
+			set_cpu_possible(i, false);
+		}
 	}
+}
+
+bool arch_match_cpu_phys_id(int cpu, u64 phys_id)
+{
+	return phys_id == cpu_logical_map(cpu);
 }
 
 /**

@@ -53,6 +53,7 @@
 #include "core.h"
 #include "gadget.h"
 #include "io.h"
+#include "debug.h"
 
 static void __dwc3_ep0_do_control_status(struct dwc3 *dwc, struct dwc3_ep *dep);
 static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
@@ -290,6 +291,7 @@ int dwc3_gadget_ep0_set_halt(struct usb_ep *ep, int value)
 	struct dwc3_ep			*dep = to_dwc3_ep(ep);
 	struct dwc3			*dwc = dep->dwc;
 
+	dbg_event(dep->number, "EP0STAL", value);
 	dwc3_ep0_stall_and_restart(dwc);
 
 	return 0;
@@ -748,6 +750,7 @@ static void dwc3_ep0_inspect_setup(struct dwc3 *dwc,
 		dwc->ep0_next_event = DWC3_EP0_NRDY_DATA;
 	}
 
+	dbg_setup(0x00, ctrl);
 	if ((ctrl->bRequestType & USB_TYPE_MASK) == USB_TYPE_STANDARD)
 		ret = dwc3_ep0_std_request(dwc, ctrl);
 	else
@@ -757,10 +760,13 @@ static void dwc3_ep0_inspect_setup(struct dwc3 *dwc,
 		dwc->delayed_status = true;
 
 out:
-	if (ret < 0)
+	if (ret < 0) {
+		dbg_event(0x0, "ERRSTAL", ret);
 		dwc3_ep0_stall_and_restart(dwc);
+	}
 }
 
+bool zlp_required;
 static void dwc3_ep0_complete_data(struct dwc3 *dwc,
 		const struct dwc3_event_depevt *event)
 {
@@ -779,19 +785,31 @@ static void dwc3_ep0_complete_data(struct dwc3 *dwc,
 	dwc->ep0_next_event = DWC3_EP0_NRDY_STATUS;
 
 	r = next_request(&ep0->request_list);
+	if (r == NULL)
+		return;
+
 	ur = &r->request;
+	if ((epnum & 1) && ur->zero &&
+		(ur->length % ep0->endpoint.maxpacket == 0)) {
+		zlp_required = true;
+		ur->zero = false;
+	}
 
 	trb = dwc->ep0_trb;
 
 	status = DWC3_TRB_SIZE_TRBSTS(trb->size);
 	if (status == DWC3_TRBSTS_SETUP_PENDING) {
 		dev_dbg(dwc->dev, "Setup Pending received\n");
+		zlp_required = false;
 
 		if (r)
 			dwc3_gadget_giveback(ep0, r, -ECONNRESET);
 
 		return;
 	}
+
+	if (zlp_required)
+		return;
 
 	length = trb->size & DWC3_TRB_SIZE_MASK;
 
@@ -811,7 +829,7 @@ static void dwc3_ep0_complete_data(struct dwc3 *dwc,
 
 	if ((epnum & 1) && ur->actual < ur->length) {
 		/* for some reason we did not get everything out */
-
+		dbg_event(epnum, "INDATSTAL", 0);
 		dwc3_ep0_stall_and_restart(dwc);
 	} else {
 		/*
@@ -847,6 +865,7 @@ static void dwc3_ep0_complete_status(struct dwc3 *dwc,
 		if (ret < 0) {
 			dev_dbg(dwc->dev, "Invalid Test #%d\n",
 					dwc->test_mode_nr);
+			dbg_event(0x00, "INVALTEST", ret);
 			dwc3_ep0_stall_and_restart(dwc);
 			return;
 		}
@@ -856,6 +875,7 @@ static void dwc3_ep0_complete_status(struct dwc3 *dwc,
 	if (status == DWC3_TRBSTS_SETUP_PENDING)
 		dev_dbg(dwc->dev, "Setup Pending received\n");
 
+	dbg_print(dep->number, "DONE", status, "STATUS");
 	dwc->ep0state = EP0_SETUP_PHASE;
 	dwc3_ep0_out_start(dwc);
 }
@@ -935,10 +955,15 @@ static void __dwc3_ep0_do_control_data(struct dwc3 *dwc,
 			return;
 		}
 
+		if (dep->number &&
+			!(req->request.length % dwc->gadget.ep0->maxpacket))
+			req->request.zero = true;
+
 		ret = dwc3_ep0_start_trans(dwc, dep->number, req->request.dma,
 				req->request.length, DWC3_TRBCTL_CONTROL_DATA);
 	}
 
+	dbg_queue(dep->number, &req->request, ret);
 	WARN_ON(ret < 0);
 }
 
@@ -956,13 +981,16 @@ static int dwc3_ep0_start_control_status(struct dwc3_ep *dep)
 
 static void __dwc3_ep0_do_control_status(struct dwc3 *dwc, struct dwc3_ep *dep)
 {
+	int ret;
 	if (dwc->resize_fifos) {
 		dev_dbg(dwc->dev, "starting to resize fifos\n");
 		dwc3_gadget_resize_tx_fifos(dwc);
 		dwc->resize_fifos = 0;
 	}
 
-	WARN_ON(dwc3_ep0_start_control_status(dep));
+	ret = dwc3_ep0_start_control_status(dep);
+	dbg_print(dep->number, "QUEUE", ret, "STATUS");
+	WARN_ON(ret);
 }
 
 static void dwc3_ep0_do_control_status(struct dwc3 *dwc,
@@ -994,7 +1022,11 @@ static void dwc3_ep0_end_control_data(struct dwc3 *dwc, struct dwc3_ep *dep)
 static void dwc3_ep0_xfernotready(struct dwc3 *dwc,
 		const struct dwc3_event_depevt *event)
 {
+	u8			epnum;
+	int			ret;
+
 	dwc->setup_packet_pending = true;
+	epnum = event->endpoint_number;
 
 	switch (event->status) {
 	case DEPEVT_STATUS_CONTROL_DATA:
@@ -1014,8 +1046,18 @@ static void dwc3_ep0_xfernotready(struct dwc3 *dwc,
 
 			dev_vdbg(dwc->dev, "Wrong direction for Data phase\n");
 			dwc3_ep0_end_control_data(dwc, dep);
+			dbg_event(epnum, "WRONGDR", 0);
 			dwc3_ep0_stall_and_restart(dwc);
 			return;
+		}
+
+		if (zlp_required) {
+			zlp_required = false;
+			ret = dwc3_ep0_start_trans(dwc, epnum,
+					dwc->ctrl_req_addr, 0,
+					DWC3_TRBCTL_CONTROL_DATA);
+			dbg_event(epnum, "ZLP", ret);
+			WARN_ON(ret < 0);
 		}
 
 		break;
@@ -1026,13 +1068,16 @@ static void dwc3_ep0_xfernotready(struct dwc3 *dwc,
 
 		dev_vdbg(dwc->dev, "Control Status\n");
 
+		zlp_required = false;
 		dwc->ep0state = EP0_STATUS_PHASE;
 
-		if (dwc->delayed_status) {
+		if (dwc->delayed_status &&
+				list_empty(&dwc->eps[0]->request_list)) {
 			WARN_ON_ONCE(event->endpoint_number != 1);
 			dev_vdbg(dwc->dev, "Mass Storage delayed status\n");
 			return;
 		}
+		dwc->delayed_status = false;
 
 		dwc3_ep0_do_control_status(dwc, event);
 	}
