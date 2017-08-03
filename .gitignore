@@ -56,6 +56,7 @@ modules.builtin
 /export.sh
 /new_compile.sh
 /dtb_build.sh
+/git_gc.sh
 /zImage_Ready
 log_build/**
 
