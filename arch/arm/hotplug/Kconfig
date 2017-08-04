@@ -1,0 +1,31 @@
+config MSM_HOTPLUG
+	bool "MSM hotplug"
+	depends on HOTPLUG_CPU
+	default y
+	help
+	  The MSM hotplug driver controls on-/offlining of additional cores based on current cpu load.
+
+config ALUCARD_HOTPLUG
+	bool "Alucard hotplug"
+ 	default n
+ 	help
+ 	  Generic Alucard-hotplug cpu hotplug driver for ARM SOCs
+
+config THUNDERPLUG_CONTROL
+ 	bool "Enable plugging down/up of cores based on load per core"
+	default y
+ 	help
+ 	  This driver hotplugs cpu cores based on per-core load
+
+config CLUSTER_PLUG
+        bool "Enable cluster-plug cpu hotplug driver"
+        depends on !INTELLI_PLUG
+        default n
+        help
+          CPU hotplug driver designed for ARM big.LITTLE systems where
+          both the big and little CPUs are of the same type. On these
+          systems, it preferable to normall use the big cluster, and
+          only activate the little cluster for highly parallel loads.
+          This hotplug implementation always keeps the big cluster
+          online, and only activates the little cluster for heavy
+          parallel loads.

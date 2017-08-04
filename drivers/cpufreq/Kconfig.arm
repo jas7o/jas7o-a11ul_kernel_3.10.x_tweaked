@@ -154,3 +154,5 @@ config CPU_FREQ_MSM
         default y
         help
           This enables the CPUFreq driver for Qualcomm CPUs.
+
+source "arch/arm/hotplug/Kconfig"

@@ -259,6 +259,7 @@ core-$(CONFIG_FPE_FASTFPE)	+= $(FASTFPE_OBJ)
 core-$(CONFIG_VFP)		+= arch/arm/vfp/
 core-$(CONFIG_XEN)		+= arch/arm/xen/
 core-$(CONFIG_KVM_ARM_HOST) 	+= arch/arm/kvm/
+core-$(CONFIG_MSM_HOTPLUG)      += arch/arm/hotplug/
 #core-$(CONFIG_VMWARE_MVP)	+= arch/arm/mvp/
 
 ifeq ($(HTCBCC_VMWARE_FLAG),true)
