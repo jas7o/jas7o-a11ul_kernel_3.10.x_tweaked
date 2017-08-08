@@ -12,10 +12,24 @@ config ALUCARD_HOTPLUG
  	  Generic Alucard-hotplug cpu hotplug driver for ARM SOCs
 
 config THUNDERPLUG_CONTROL
- 	bool "Enable plugging down/up of cores based on load per core"
+ 	bool "Thunderplug hotplug down/up of cores based on load per core"
 	default y
  	help
  	  This driver hotplugs cpu cores based on per-core load
+
+config BRICKED_HOTPLUG
+	bool "Bricked hotplug kernel based mpdecision"
+	depends on MSM_RUN_QUEUE_STATS
+	default n
+	help
+	 This enables kernel based multi core control.
+	 (up/down hotplug based on load)
+
+config INTELLI_PLUG
+	bool "Enable intelli-plug cpu hotplug driver"
+	default y
+	help
+	  Generic Intelli-plug cpu hotplug driver for ARM SOCs
 
 config CLUSTER_PLUG
         bool "Enable cluster-plug cpu hotplug driver"
